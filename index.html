@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Minecraft Chunk Planner</title>
+
+<style>
+/* ============================================================
+   GLOBAL LAYOUT + SIDEBAR
+   ============================================================ */
+
+body {
+    margin: 0;
+    display: flex;
+    height: 100vh;
+    background: #1e1e1e;
+    color: white;
+    font-family: sans-serif;
+}
+
+/* Left sidebar */
+#sidebar {
+    width: 433px;
+    background: #2b2b2b;
+    padding: 10px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 10;
+    height: 100vh;
+    overflow-y: auto;
+}
+
+#chunkControls h3,
+#itemPalette h3 {
+    margin: 0 0 5px 0;
+    font-size: 14px;
+}
+
+#chunkControls button {
+    width: 100%;
+    margin-bottom: 5px;
+    padding: 5px;
+    background: #3a3a3a;
+    color: white;
+    border: 1px solid #555;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+#chunkControls button:hover {
+    background: #4a4a4a;
+}
+
+#directionControls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 5px;
+    margin-top: 5px;
+}
+
+#directionControls button {
+    padding: 5px;
+    background: #3a3a3a;
+    border: 1px solid #555;
+    color: white;
+    cursor: pointer;
+}
+
+#directionControls button:hover {
+    background: #4a4a4a;
+}
+
+/* ============================================================
+   ITEM PALETTE
+   ============================================================ */
+
+#itemPalette {
+    border-top: 1px solid #444;
+    padding-top: 8px;
+}
+
+#itemFilters {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 6px;
+}
+
+#itemSearch,
+#categoryFilter {
+    width: 100%;
+    padding: 4px 6px;
+    box-sizing: border-box;
+    border-radius: 3px;
+    border: 1px solid #555;
+    background: #1f1f1f;
+    color: white;
+    font-size: 12px;
+}
+
+/* ★ FIX APPLIED — prevents fractional scaling */
+#itemList {
+    display: grid;
+    grid-template-columns: repeat(6, 60px);
+    gap: 6px;
+    padding-right: 6px;
+}
+
+.item {
+    width: 60px;
+    height: 60px;
+    background: #444;
+    border: 2px solid transparent;
+    cursor: pointer;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: border 0.15s;
+}
+
+.item.selected {
+    border: 2px solid #00aaff;
+    box-shadow: 0 0 6px #00aaff;
+}
+
+/* ★ FIX APPLIED — force crisp pixel rendering */
+.item img {
+    max-width: 48px;
+    max-height: 48px;
+    width: 48px;
+    height: 48px;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    pointer-events: none;
+}
+
+/* ============================================================
+   FLOATING HOW-TO PANEL
+   ============================================================ */
+
+#infoPanel {
+    position: absolute;
+    bottom: 15px;
+    right: 15px;
+    width: 260px;
+    background: rgba(36, 36, 36, 0.92);
+    border: 1px solid #444;
+    padding: 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 1.4;
+    z-index: 20;
+    backdrop-filter: blur(4px);
+}
+
+#infoPanel .tag {
+    font-weight: bold;
+    color: #00aaff;
+    margin-bottom: 6px;
+    display: block;
+}
+
+/* ============================================================
+   MAIN AREA + GRID
+   ============================================================ */
+
+#main {
+    flex: 1;
+    overflow: hidden;
+    background: #111;
+    position: relative;
+    pointer-events: none;
+}
+
+#chunkGridWrapper {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform-origin: center center;
+    pointer-events: auto;
+}
+
+#chunkGrid {
+    display: grid;
+    gap: 4px;
+    padding: 10px;
+    box-sizing: border-box;
+}
+
+.chunk {
+    background: #222;
+    display: grid;
+    grid-template-columns: repeat(16, 20px);
+    grid-template-rows: repeat(16, 20px);
+    border: 1px solid #444;
+}
+
+.block {
+    width: 20px;
+    height: 20px;
+    border: 1px solid #333;
+    box-sizing: border-box;
+    background-size: cover;
+    background-position: center;
+    image-rendering: pixelated;
+}
+
+/* ============================================================
+   RECENT ITEMS BAR (TOP RIGHT)
+   ============================================================ */
+
+#recentItemsBar {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: #2b2b2b;
+    border: 1px solid #444;
+    padding: 8px;
+    border-radius: 6px;
+    display: flex;
+    gap: 6px;
+    z-index: 40;
+    pointer-events: auto;
+}
+
+.recent-item {
+    width: 48px;
+    height: 48px;
+    background: #444;
+    border: 2px solid transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.recent-item:hover {
+    border-color: #00aaff;
+}
+
+.recent-item img {
+    max-width: 40px;
+    max-height: 40px;
+    width: 40px;
+    height: 40px;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    pointer-events: none;
+}
+
+#selectionRect {
+    position: fixed;
+    border: 2px dashed #00aaff;
+    background: rgba(0,170,255,0.15);
+    pointer-events: none;
+    display: none;
+    z-index: 99999;
+}
+
+</style>
+</head>
+
+<body>
+
+<!-- ============================================================
+     SIDEBAR
+     ============================================================ -->
+<div id="sidebar">
+
+    <div id="chunkControls">
+        <h3>Chunks</h3>
+
+        <div id="directionControls">
+            <button onclick="addChunkUp()">Add ↑</button>
+            <button onclick="addChunkDown()">Add ↓</button>
+            <button onclick="addChunkLeft()">Add ←</button>
+            <button onclick="addChunkRight()">Add →</button>
+        </div>
+
+        <button onclick="removeChunk()">Remove Last Chunk</button>
+        <button onclick="removeAllChunks()">Remove ALL Chunks</button>
+    </div>
+
+    <div id="itemPalette">
+        <h3>Items</h3>
+
+        <div id="itemFilters">
+            <input id="itemSearch" type="text" placeholder="Search items..." oninput="applyFilters()">
+            <select id="categoryFilter" onchange="applyFilters()">
+                <option value="all">All Categories</option>
+            </select>
+        </div>
+
+        <div id="itemList"></div>
+    </div>
+
+</div>
+
+<!-- ============================================================
+     FLOATING HOW-TO PANEL
+     ============================================================ -->
+<div id="infoPanel">
+    <span class="tag">Made By Cutlington — v1.0</span>
+
+    <h3>How to Use</h3>
+
+    <div style="margin-bottom:6px;">
+        Select an item from the column on the left, then either Left Click to place or Right Click to remove.
+    </div>
+
+    <div>
+        <b>Left‑Click + Drag:</b> Place selected item<br>
+        <b>Alt + Left‑Click:</b> Erase blocks<br>
+        <b>Shift + Left‑Click:</b> Fill entire chunk<br>
+        <b>Ctrl + Left‑Click:</b> Clear entire chunk<br>
+        <b>Scroll Wheel:</b> Zoom<br>
+        <b>W A S D:</b> Pan the view<br>
+    </div>
+</div>
+
+<!-- ============================================================
+     MAIN AREA
+     ============================================================ -->
+<div id="main">
+    <div id="chunkGridWrapper">
+        <div id="chunkGrid"></div>
+    </div>
+
+    <!-- Recent items bar -->
+    <div id="recentItemsBar"></div>
+</div>
+
+<script>
+/* ============================================================
+   SAFETY: DISABLE RIGHT-CLICK DRAG NAVIGATION
+   ============================================================ */
+
+window.addEventListener("contextmenu", e => e.preventDefault());
+window.addEventListener("pointerdown", e => { if (e.button === 2) e.preventDefault(); });
+window.addEventListener("pointermove", e => { if (e.buttons === 2) e.preventDefault(); });
+
+/* ============================================================
+   CORE STATE
+   ============================================================ */
+
+let ITEMS = [];
+let CATEGORIES = {};
+let currentItem = null;
+
+let zoomLevel = 1;
+let panX = 0;
+let panY = 0;
+const panSpeed = 20;
+
+/* ============================================================
+   CHUNK CREATION
+   ============================================================ */
+
+function createChunk() {
+    const chunk = document.createElement("div");
+    chunk.className = "chunk";
+
+    for (let i = 0; i < 256; i++) {
+        const block = document.createElement("div");
+        block.className = "block";
+
+        block.addEventListener("mousedown", e => {
+    if (qHeld) return; // 🚨 BLOCK Q TOOL FROM INTERFERING
+
+    const parentChunk = block.parentElement;
+
+    if (e.shiftKey && e.button === 0) {
+        fillChunk(parentChunk, currentItem);
+        return;
+    }
+
+    if (e.ctrlKey && e.button === 0) {
+        clearChunk(parentChunk);
+        return;
+    }
+
+    if (e.altKey && e.button === 0) {
+        block.style.backgroundImage = "";
+        return;
+    }
+
+    if (e.button === 0 && currentItem) {
+        placeItem(block);
+    }
+});
+
+block.addEventListener("mouseenter", e => {
+    if (qHeld) return; // 🚨 STOP DRAG PAINT DURING Q MODE
+
+    if (e.altKey && e.buttons === 1) {
+        block.style.backgroundImage = "";
+        return;
+    }
+
+    if (e.buttons === 1 && currentItem && !e.altKey) {
+        placeItem(block);
+    }
+});
+
+        chunk.appendChild(block);
+    }
+
+    return chunk;
+}
+
+/* Create initial grid */
+let grid = [
+    [createChunk()]
+];
+
+/* ============================================================
+   ITEM LOADING
+   ============================================================ */
+
+fetch("data/items.json")
+    .then(res => res.json())
+    .then(data => {
+        ITEMS = data.items;
+        CATEGORIES = data.categories || {};
+        buildCategoryDropdown();
+        buildPalette(ITEMS);
+    })
+    .catch(err => console.error("Failed to load items.json", err));
+
+function buildCategoryDropdown() {
+    const sel = document.getElementById("categoryFilter");
+    sel.innerHTML = "";
+
+    // Add "All Categories"
+    const all = document.createElement("option");
+    all.value = "all";
+    all.textContent = "All Categories";
+    sel.appendChild(all);
+
+// Add category names
+CATEGORIES.forEach((cat) => {
+    const opt = document.createElement("option");
+    opt.value = cat;        // category NAME (string)
+    opt.textContent = cat;  // category NAME (string)
+    sel.appendChild(opt);
+});
+}
+
+function applyFilters() {
+    const searchText = document.getElementById("itemSearch").value.toLowerCase();
+    const selectedCategory = document.getElementById("categoryFilter").value;
+
+    let filtered = ITEMS;
+
+if (selectedCategory !== "all") {
+    filtered = ITEMS.filter(item => item.category === selectedCategory);
+}
+
+    if (searchText.trim() !== "") {
+        filtered = filtered.filter(item =>
+            item.id.toLowerCase().includes(searchText)
+        );
+    }
+
+    buildPalette(filtered);
+}
+
+function buildPalette(list) {
+    const itemList = document.getElementById("itemList");
+    itemList.innerHTML = "";
+
+    list.forEach(item => {
+        const div = document.createElement("div");
+        div.className = "item";
+        div.dataset.item = item.id;
+
+        const img = document.createElement("img");
+        img.src = "items/" + item.file;
+
+        div.appendChild(img);
+        div.addEventListener("click", () => selectItem(item.id));
+
+        itemList.appendChild(div);
+    });
+
+    if (currentItem) {
+        document.querySelectorAll(".item").forEach(el =>
+            el.classList.toggle("selected", el.dataset.item === currentItem)
+        );
+    }
+}
+
+function selectItem(id) {
+    currentItem = id;
+
+    document.querySelectorAll(".item").forEach(el =>
+        el.classList.toggle("selected", el.dataset.item === id)
+    );
+}
+
+/* ============================================================
+   CHUNK FILL + CLEAR
+   ============================================================ */
+
+function fillChunk(chunk, itemId) {
+    const item = ITEMS.find(i => i.id === itemId);
+    if (!item) return;
+
+    chunk.querySelectorAll(".block").forEach(block => {
+        block.style.backgroundImage = `url("items/${item.file}")`;
+    });
+}
+
+function clearChunk(chunk) {
+    chunk.querySelectorAll(".block").forEach(block => {
+        block.style.backgroundImage = "";
+    });
+}
+
+/* ============================================================
+   PLACE ITEM (with recent tracking)
+   ============================================================ */
+
+function placeItem(block) {
+    const item = ITEMS.find(i => i.id === currentItem);
+    if (item) block.style.backgroundImage = `url("items/${item.file}")`;
+
+    if (currentItem) addRecentItem(currentItem);
+}
+
+/* ============================================================
+   RENDER GRID
+   ============================================================ */
+
+function renderGrid() {
+    const gridEl = document.getElementById("chunkGrid");
+    gridEl.innerHTML = "";
+
+    const rows = grid.length;
+    const cols = grid[0].length;
+
+    gridEl.style.gridTemplateColumns = `repeat(${cols}, auto)`;
+    gridEl.style.gridTemplateRows = `repeat(${rows}, auto)`;
+
+    for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+            gridEl.appendChild(grid[r][c]);
+        }
+    }
+}
+
+/* ============================================================
+   GRID EXPANSION
+   ============================================================ */
+
+function addChunkUp() {
+    const cols = grid[0].length;
+    const newRow = Array.from({ length: cols }, () => createChunk());
+    grid.unshift(newRow);
+    renderGrid();
+}
+
+function addChunkDown() {
+    const cols = grid[0].length;
+    const newRow = Array.from({ length: cols }, () => createChunk());
+    grid.push(newRow);
+    renderGrid();
+}
+
+function addChunkLeft() {
+    for (let r = 0; r < grid.length; r++) {
+        grid[r].unshift(createChunk());
+    }
+    renderGrid();
+}
+
+function addChunkRight() {
+    for (let r = 0; r < grid.length; r++) {
+        grid[r].push(createChunk());
+    }
+    renderGrid();
+}
+
+function removeChunk() {
+    if (grid.length === 1 && grid[0].length === 1) return;
+
+    if (grid.length > 1) {
+        grid.pop();
+    } else {
+        for (let r = 0; r < grid.length; r++) {
+            grid[r].pop();
+        }
+    }
+
+    renderGrid();
+}
+
+function removeAllChunks() {
+    grid = [
+        [createChunk()]
+    ];
+    renderGrid();
+    panX = 0;
+    panY = 0;
+    zoomLevel = 1;
+    updateTransform();
+}
+
+/* ============================================================
+   ZOOM + PAN
+   ============================================================ */
+
+function zoomIn() {
+    zoomLevel = Math.min(zoomLevel + 0.1, 3);
+    updateTransform();
+}
+
+function zoomOut() {
+    zoomLevel = Math.max(zoomLevel - 0.1, 0.4);
+    updateTransform();
+}
+
+function updateTransform() {
+    document.getElementById("chunkGridWrapper").style.transform =
+        `translate(-50%, -50%) translate(${panX}px, ${panY}px) scale(${zoomLevel})`;
+}
+
+const gridWrapper = document.getElementById("chunkGridWrapper");
+
+gridWrapper.addEventListener("wheel", e => {
+    if (e.deltaY < 0) zoomIn();
+    else zoomOut();
+    e.preventDefault();
+}, { passive: false });
+
+document.addEventListener("keydown", e => {
+    if (e.key === "w") panY += panSpeed;
+    if (e.key === "s") panY -= panSpeed;
+    if (e.key === "a") panX += panSpeed;
+    if (e.key === "d") panX -= panSpeed;
+    updateTransform();
+});
+
+/* ============================================================
+   RECENT ITEMS BAR — TRACKING + RENDERING
+   ============================================================ */
+
+let recentItems = [];
+
+function addRecentItem(itemId) {
+    recentItems = recentItems.filter(id => id !== itemId);
+    recentItems.push(itemId);
+
+    if (recentItems.length > 12) {
+        recentItems.shift();
+    }
+
+    renderRecentItems();
+}
+
+function renderRecentItems() {
+    const bar = document.getElementById("recentItemsBar");
+    bar.innerHTML = "";
+
+    recentItems.forEach(id => {
+        const item = ITEMS.find(i => i.id === id);
+        if (!item) return;
+
+        const div = document.createElement("div");
+        div.className = "recent-item";
+
+        const img = document.createElement("img");
+        img.src = "items/" + item.file;
+
+        div.appendChild(img);
+
+        div.addEventListener("click", () => {
+            selectItem(id);
+        });
+
+        bar.appendChild(div);
+    });
+}
+
+/* ============================================================
+   INITIAL RENDER
+   ============================================================ */
+
+renderGrid();
+updateTransform();
+
+/* ===== Q SELECTION TOOL ===== */
+let qHeld = false;
+let selecting = false;
+let startX = 0;
+let startY = 0;
+
+let selectedBlocks = [];
+let dragAnchor = null;
+
+const selectionRect = document.getElementById("selectionRect");
+
+function clearSelection() {
+    selectedBlocks.forEach(b => b.classList.remove("selected-block"));
+    selectedBlocks = [];
+    dragAnchor = null;
+}
+
+document.addEventListener("keydown", e => {
+    if (e.key.toLowerCase() === "q") qHeld = true;
+    if (e.key === "Escape") clearSelection();
+});
+
+document.addEventListener("keyup", e => {
+    if (e.key.toLowerCase() === "q") {
+        qHeld = false;
+        selecting = false;
+        selectionRect.style.display = "none";
+    }
+});
+
+document.addEventListener("mousedown", e => {
+    if (!qHeld) return;
+    if (!e.target.classList.contains("block")) return;
+
+    clearSelection();
+
+    selecting = true;
+    startX = e.clientX;
+    startY = e.clientY;
+
+    selectionRect.style.display = "block";
+    selectionRect.style.left = startX + "px";
+    selectionRect.style.top = startY + "px";
+    selectionRect.style.width = "0px";
+    selectionRect.style.height = "0px";
+
+    e.preventDefault();
+}, true);
+
+document.addEventListener("mousemove", e => {
+    if (!selecting) return;
+
+    const x = Math.min(startX, e.clientX);
+    const y = Math.min(startY, e.clientY);
+    const w = Math.abs(e.clientX - startX);
+    const h = Math.abs(e.clientY - startY);
+
+    selectionRect.style.left = x + "px";
+    selectionRect.style.top = y + "px";
+    selectionRect.style.width = w + "px";
+    selectionRect.style.height = h + "px";
+});
+
+document.addEventListener("mouseup", e => {
+    if (!selecting) return;
+
+    const rect = selectionRect.getBoundingClientRect();
+    selectedBlocks = [];
+
+    document.querySelectorAll(".block").forEach(block => {
+        const b = block.getBoundingClientRect();
+
+        const hit =
+            !(b.right < rect.left ||
+              b.left > rect.right ||
+              b.bottom < rect.top ||
+              b.top > rect.bottom);
+
+        if (hit) {
+            block.classList.add("selected-block");
+            selectedBlocks.push(block);
+        }
+    });
+
+    selecting = false;
+    selectionRect.style.display = "none";
+
+    if (selectedBlocks.length) {
+        dragAnchor = selectedBlocks[0];
+    }
+});
+
+document.addEventListener("dblclick", e => {
+    if (!qHeld) return;
+    if (!selectedBlocks.length) return;
+    if (!e.target.classList.contains("block")) return;
+
+    const targetRect = e.target.getBoundingClientRect();
+
+    const snapshot = selectedBlocks.map(b => ({
+        el: b,
+        img: b.style.backgroundImage
+    }));
+
+    // clear originals
+    snapshot.forEach(s => s.el.style.backgroundImage = "");
+
+    // place based on nearest block position
+    snapshot.forEach((s, i) => {
+        const all = [...document.querySelectorAll(".block")];
+
+        let best = null;
+        let bestDist = Infinity;
+
+        all.forEach(b => {
+            const r = b.getBoundingClientRect();
+
+            const dx = r.left - targetRect.left;
+            const dy = r.top - targetRect.top;
+            const dist = dx * dx + dy * dy;
+
+            if (dist < bestDist) {
+                bestDist = dist;
+                best = b;
+            }
+        });
+
+        if (best) {
+            best.style.backgroundImage = s.img;
+        }
+    });
+
+    clearSelection();
+});
+
+
+</script>
+<div id="selectionRect"></div>
+</body>
+</html>
